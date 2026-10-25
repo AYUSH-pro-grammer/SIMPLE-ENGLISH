@@ -14,6 +14,10 @@ extends Node2D
 @onready var answer_label = $CanvasLayer/GamePanel/AnswerLabel
 @onready var message_label = $CanvasLayer/GamePanel/MessageLabel
 
+const EXTRA_WORD_COUNT = 7
+const UI_HEIGHT = 150.0
+const BUTTON_MARGIN = 70.0
+const MIN_DISTANCE = 120.0
 
 var sentences = [
 	"hey how are you",
@@ -23,7 +27,14 @@ var sentences = [
 	"godot is very cool",
 	"the sun is bright",
 	"i love playing games",
-    "jump and find words"
+	"jump and find words"
+]
+
+var extra_words = [
+	"dog", "happy", "blue", "bird", "big",
+	"small", "tree", "fast", "fish", "sun",
+	"apple", "green", "house", "star", "book",
+	"moon", "run", "water", "red", "fun"
 ]
 
 var target_words: Array[String] = []
@@ -32,8 +43,8 @@ var game_started: bool = false
 
 
 func _ready() -> void:
-	setup_ui()
 	randomize()
+	setup_ui()
 
 	start_button.pressed.connect(_on_start_pressed)
 	player.jump_started.connect(_on_jump_started)
@@ -42,7 +53,6 @@ func _ready() -> void:
 	game_panel.hide()
 	player.hide()
 
-	# Remove any manually created word nodes.
 	for child in words_container.get_children():
 		child.queue_free()
 
@@ -58,16 +68,14 @@ func _on_start_pressed() -> void:
 
 func new_round() -> void:
 	if word_button_scene == null:
-		message_label.text = "ERROR: Assign WordButton.tscn in the Inspector!"
+		message_label.text = "Assign WordButton.tscn in Inspector!"
 		game_started = false
 		return
 
-	# Clear the previous round.
 	for child in words_container.get_children():
 		words_container.remove_child(child)
 		child.queue_free()
 
-	# Pick a random sentence.
 	var sentence: String = sentences.pick_random()
 
 	target_words.clear()
@@ -77,66 +85,64 @@ func new_round() -> void:
 	next_index = 0
 
 	target_label.text = "TARGET: " + sentence
-
-	var blanks: Array[String] = []
-	for word in target_words:
-		blanks.append("_")
-
-	answer_label.text = "YOUR ANSWER: " + " ".join(blanks)
+	update_answer()
 	message_label.text = "Find: " + target_words[0]
 
-	# Shuffle the words.
-	var shuffled_words = target_words.duplicate()
-	shuffled_words.shuffle()
+	var all_words: Array[String] = target_words.duplicate()
+	var decoys: Array[String] = []
 
-	# Randomly position the word buttons.
+	for word in extra_words:
+		if not target_words.has(word):
+			decoys.append(word)
+
+	decoys.shuffle()
+
+	for i in range(mini(EXTRA_WORD_COUNT, decoys.size())):
+		all_words.append(decoys[i])
+
+	all_words.shuffle()
+
 	var screen_size = get_viewport_rect().size
 	var placed_positions: Array[Vector2] = []
 
-	var left_margin = 70.0
-	var right_margin = 70.0
-	var top_limit = screen_size.y * 0.45
-	var bottom_limit = screen_size.y - 70.0
-	var min_distance = 120.0
+	var left = BUTTON_MARGIN
+	var right = maxf(left, screen_size.x - BUTTON_MARGIN)
+	var top = UI_HEIGHT + 65.0
+	var bottom = maxf(top, screen_size.y - BUTTON_MARGIN)
 
-	for word in shuffled_words:
+	for word in all_words:
 		var button = word_button_scene.instantiate()
-
-		# Set the word before adding it to the scene.
 		button.setup(word)
 		words_container.add_child(button)
 
-		var position_found = false
-		var button_position = Vector2.ZERO
+		var button_pos = Vector2.ZERO
+		var found_position = false
 
 		for attempt in range(200):
-			button_position = Vector2(
-				randf_range(left_margin, screen_size.x - right_margin),
-				randf_range(top_limit, bottom_limit)
+			button_pos = Vector2(
+				randf_range(left, right),
+				randf_range(top, bottom)
 			)
 
-			var valid_position = true
-
-			for existing_position in placed_positions:
-				if button_position.distance_to(existing_position) < min_distance:
-					valid_position = false
+			var valid = true
+			for existing in placed_positions:
+				if button_pos.distance_to(existing) < MIN_DISTANCE:
+					valid = false
 					break
 
-			if valid_position:
-				position_found = true
+			if valid:
+				found_position = true
 				break
 
-		if not position_found:
-			# Fallback for smaller screens.
-			button_position = Vector2(
-				randf_range(left_margin, screen_size.x - right_margin),
-				randf_range(top_limit, bottom_limit)
+		if not found_position:
+			button_pos = Vector2(
+				randf_range(left, right),
+				randf_range(top, bottom)
 			)
 
-		button.position = button_position
-		placed_positions.append(button_position)
+		button.position = button_pos
+		placed_positions.append(button_pos)
 
-	# Place the player near the bottom center.
 	player.position = Vector2(
 		screen_size.x / 2.0,
 		screen_size.y - 100.0
@@ -151,9 +157,8 @@ func _on_jump_started(ground_pos: Vector2) -> void:
 		return
 
 	var nearest_button = null
-	var nearest_distance: float = 65.0
+	var nearest_distance = 65.0
 
-	# Find the closest unselected word.
 	for button in words_container.get_children():
 		if button.selected:
 			continue
@@ -171,19 +176,9 @@ func _on_jump_started(ground_pos: Vector2) -> void:
 	var expected_word = target_words[next_index]
 
 	if nearest_button.word == expected_word:
-		# Correct word!
 		nearest_button.mark_selected()
 		next_index += 1
-
-		var answer_parts: Array[String] = []
-
-		for i in range(target_words.size()):
-			if i < next_index:
-				answer_parts.append(target_words[i])
-			else:
-				answer_parts.append("_")
-
-		answer_label.text = "YOUR ANSWER: " + " ".join(answer_parts)
+		update_answer()
 
 		if next_index >= target_words.size():
 			message_label.text = "Sentence completed!"
@@ -192,11 +187,20 @@ func _on_jump_started(ground_pos: Vector2) -> void:
 			get_tree().create_timer(1.5).timeout.connect(_next_round)
 		else:
 			message_label.text = "Find: " + target_words[next_index]
-
 	else:
-		# Incorrect word.
 		message_label.text = "Wrong word! Find: " + expected_word
 
+
+func update_answer() -> void:
+	var answer_parts: Array[String] = []
+
+	for i in range(target_words.size()):
+		if i < next_index:
+			answer_parts.append(target_words[i])
+		else:
+			answer_parts.append("_")
+
+	answer_label.text = "YOUR ANSWER: " + " ".join(answer_parts)
 
 
 func setup_ui() -> void:
@@ -214,11 +218,11 @@ func setup_ui() -> void:
 	$CanvasLayer/StartPanel/SubtitleLabel.position = Vector2(30, 115)
 	$CanvasLayer/StartPanel/SubtitleLabel.size = Vector2(440, 45)
 
-	$CanvasLayer/StartPanel/StartButton.position = Vector2(150, 200)
-	$CanvasLayer/StartPanel/StartButton.size = Vector2(200, 55)
+	start_button.position = Vector2(150, 200)
+	start_button.size = Vector2(200, 55)
 
-	game_panel.position = Vector2(0, 0)
-	game_panel.size = Vector2(screen_size.x, 150)
+	game_panel.position = Vector2.ZERO
+	game_panel.size = Vector2(screen_size.x, UI_HEIGHT)
 
 	target_label.position = Vector2(30, 15)
 	target_label.size = Vector2(screen_size.x - 60, 40)

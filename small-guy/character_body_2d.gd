@@ -20,7 +20,7 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	# JUMP
+
 	if is_jumping:
 		jump_time += delta
 
@@ -45,7 +45,7 @@ func _physics_process(delta: float) -> void:
 
 		return
 
-	# MOVEMENT
+
 	var direction: Vector2 = Input.get_vector(
 		"ui_left",
 		"ui_right",
@@ -56,13 +56,12 @@ func _physics_process(delta: float) -> void:
 	velocity = direction * SPEED
 	move_and_slide()
 
-	# FLIP SPRITE WHEN MOVING LEFT OR RIGHT
 	if direction.x < 0:
 		animated_sprite.flip_h = true
 	elif direction.x > 0:
 		animated_sprite.flip_h = false
 
-	# RUN ANIMATION
+
 	if direction != Vector2.ZERO:
 		if animated_sprite.animation != "run" or not animated_sprite.is_playing():
 			animated_sprite.play("run")
@@ -72,7 +71,6 @@ func _physics_process(delta: float) -> void:
 			animated_sprite.animation = "run"
 		animated_sprite.frame = 0
 
-	# SPACE TO JUMP
 	if Input.is_action_just_pressed("jump"):
 		ground_position = global_position
 		jump_time = 0.0
