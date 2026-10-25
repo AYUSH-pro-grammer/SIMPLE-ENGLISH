@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://bd07jcmg3107b"]
+
+[ext_resource type="Script" uid="uid://coctoa8ygvqxh" path="res://word_button.gd" id="1_2v200"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_wlb43"]
+size = Vector2(100, 45)
+
+[node name="WordButton" type="Area2D" unique_id=1747233497]
+script = ExtResource("1_2v200")
+
+[node name="Label" type="Label" parent="." unique_id=1188750559]
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1592551116]
+shape = SubResource("RectangleShape2D_wlb43")
